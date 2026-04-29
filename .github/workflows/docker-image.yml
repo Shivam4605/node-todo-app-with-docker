@@ -39,31 +39,43 @@ jobs:
           script: |
             set -e
 
-            # AWS Region and ECR details
             REGION="us-east-1"
             ACCOUNT_ID="784803613534"
             REPO_NAME="node-todo-app"
-            IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME:latest"
+            REGISTRY="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+            IMAGE_URI="$REGISTRY/$REPO_NAME:latest"
 
-            # Login to ECR (EC2 should have IAM Role or aws configure)
-            aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+            echo "=== Debug: AWS CLI Version ==="
+            aws --version || true
 
-            # Pull latest image
+            echo "=== Debug: Caller Identity ==="
+            aws sts get-caller-identity || true
+
+            echo "=== Debug: IAM Role Name ==="
+            ROLE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ || true)
+            echo "$ROLE_NAME"
+
+            echo "=== Debug: IAM Role Credentials ==="
+            if [ -n "$ROLE_NAME" ]; then
+              curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME || true
+            fi
+
+            echo "=== Login to ECR ==="
+            aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $REGISTRY
+
+            echo "=== Pull Latest Image ==="
             docker pull $IMAGE_URI
 
-            # Stop and remove old container if exists
+            echo "=== Replace Old Container ==="
             docker stop node-app || true
             docker rm node-app || true
 
-            # Remove dangling images (optional cleanup)
-            docker image prune -f || true
-            # Run new container
+            echo "=== Run New Container ==="
             docker run -d \
               --name node-app \
               --restart unless-stopped \
               -p 8000:8000 \
               $IMAGE_URI
 
-            # Show running containers
-            docker ps
-                
+            echo "=== Running Containers ==="
+            docker ps          
