@@ -25,11 +25,11 @@ jobs:
         run: docker build -t node-app .
 
       - name: Tag Image
-        run: docker tag node-app:latest 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app
+        run: docker tag node-app:latest public.ecr.aws/i6g2k9g5/test-node-app:latest
 
       - name: Push Image
-        run: docker push 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app
-        
+        run: docker push public.ecr.aws/i6g2k9g5/test-node-app:latest
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -38,9 +38,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             
-            sudo aws ecr get-login-password --region us-east-1 | docker login --username shivam --password-shivam@123 784803613534.dkr.ecr.us-east-1.amazonaws.com
-            sudo docker pull 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
-            sudo docker stop node-app || true
-            sudo docker rm node-app || true
-            sudo docker run -d --name node-app -p 8000:8000 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+            script: |
+                aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/i6g2k9g5/test-node-app:latest
+                docker pull public.ecr.aws/i6g2k9g5/test-node-app:latest
+                docker stop node-app || true
+                docker rm node-app || true
+                docker run -d --name node-app -p 8000:8000 public.ecr.aws/i6g2k9g5/test-node-app:latest
     
