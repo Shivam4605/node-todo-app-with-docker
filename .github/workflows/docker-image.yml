@@ -37,6 +37,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            
             sudo aws ecr get-login-password --region us-east-1 | docker login --username shivam --password-shivam@123 784803613534.dkr.ecr.us-east-1.amazonaws.com
             sudo docker pull 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
             sudo docker stop node-app || true
