@@ -34,14 +34,12 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            
-            script: |
-                aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
-                docker pull 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
-                docker stop node-app || true
-                docker rm node-app || true
-                docker run -d --name node-app -p 8000:8000 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
-    
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 784803613534.dkr.ecr.us-east-1.amazonaws.com
+            docker pull 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+            docker stop node-app || true
+            docker rm node-app || true
+            docker run -d --name node-app -p 8000:8000 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+          
