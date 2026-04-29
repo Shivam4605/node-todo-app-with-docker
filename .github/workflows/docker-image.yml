@@ -2,34 +2,49 @@
 
 # on:
 #   push:
-#     branches: [main]
+#     branches:
+#       - main
 
 # jobs:
-#   build-and-push:
+#   build-push-deploy:
 #     runs-on: ubuntu-latest
 
-#     steps:
-#       - uses: actions/checkout@v4
+#     env:
+#       REGION: us-east-1
+#       ACCOUNT_ID: 784803613534
+#       REPO_NAME: node-todo-app
+#       IMAGE_TAG: latest
 
-#       - name: Configure AWS
+#     steps:
+#       - name: Checkout Source Code
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS Credentials
 #         uses: aws-actions/configure-aws-credentials@v4
 #         with:
 #           aws-access-key-id: ${{ secrets.AWS_KEY }}
 #           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
-#           aws-region: us-east-1
+#           aws-region: ${{ env.REGION }}
 
-#       - name: Login to ECR
+#       - name: Login to Amazon ECR
 #         uses: aws-actions/amazon-ecr-login@v2
 
-#       - name: Build Image
-#         run: docker build -t node-app .
+#       - name: Build Docker Image
+#         run: |
+#           docker build -t node-app .
 
-#       - name: Tag Image
-#         run: docker tag node-app:latest 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
+#       - name: Tag Docker Image
+#         run: |
+#           docker tag node-app:${{ env.IMAGE_TAG }} \
+#           ${{ env.ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.REPO_NAME }}:${{ env.IMAGE_TAG }}
 
-#       - name: Push Image
-#         run: docker push 784803613534.dkr.ecr.us-east-1.amazonaws.com/node-todo-app:latest
-
+#       - name: Push Docker Image to ECR
+#         run: |
+#           docker push \
+#           ${{ env.ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.REPO_NAME }}:${{ env.IMAGE_TAG }}
+#   deploy:
+#     needs: build-push
+#     runs-on: ubuntu-latest
 #       - name: Deploy to EC2
 #         uses: appleboy/ssh-action@v1.0.3
 #         with:
@@ -42,23 +57,17 @@
 #             REGION="us-east-1"
 #             ACCOUNT_ID="784803613534"
 #             REPO_NAME="node-todo-app"
+#             IMAGE_TAG="latest"
+
 #             REGISTRY="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
-#             IMAGE_URI="$REGISTRY/$REPO_NAME:latest"
+#             IMAGE_URI="$REGISTRY/$REPO_NAME:$IMAGE_TAG"
 
-#             echo "=== Debug: AWS CLI Version ==="
-#             aws --version || true
+#             export AWS_ACCESS_KEY_ID='${{ secrets.AWS_KEY }}'
+#             export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET }}'
+#             export AWS_DEFAULT_REGION="$REGION"
 
-#             echo "=== Debug: Caller Identity ==="
-#             aws sts get-caller-identity || true
-
-#             echo "=== Debug: IAM Role Name ==="
-#             ROLE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ || true)
-#             echo "$ROLE_NAME"
-
-#             echo "=== Debug: IAM Role Credentials ==="
-#             if [ -n "$ROLE_NAME" ]; then
-#               curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME || true
-#             fi
+#             echo "=== AWS Identity ==="
+#             aws sts get-caller-identity
 
 #             echo "=== Login to ECR ==="
 #             aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $REGISTRY
@@ -66,9 +75,12 @@
 #             echo "=== Pull Latest Image ==="
 #             docker pull $IMAGE_URI
 
-#             echo "=== Replace Old Container ==="
+#             echo "=== Stop Old Container ==="
 #             docker stop node-app || true
 #             docker rm node-app || true
+
+#             echo "=== Remove Unused Images ==="
+#             docker image prune -af || true
 
 #             echo "=== Run New Container ==="
 #             docker run -d \
@@ -78,9 +90,7 @@
 #               $IMAGE_URI
 
 #             echo "=== Running Containers ==="
-#             docker ps          
-
-
+#             docker ps 
 
 
 name: CI-CD
@@ -91,7 +101,8 @@ on:
       - main
 
 jobs:
-  build-push-deploy:
+
+  build-push:
     runs-on: ubuntu-latest
 
     env:
@@ -115,19 +126,23 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker Image
-        run: |
-          docker build -t node-app .
+        run: docker build -t node-app .
 
       - name: Tag Docker Image
         run: |
-          docker tag node-app:${{ env.IMAGE_TAG }} \
+          docker tag node-app:latest \
           ${{ env.ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.REPO_NAME }}:${{ env.IMAGE_TAG }}
 
-      - name: Push Docker Image to ECR
+      - name: Push Docker Image
         run: |
           docker push \
           ${{ env.ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com/${{ env.REPO_NAME }}:${{ env.IMAGE_TAG }}
 
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -149,29 +164,21 @@ jobs:
             export AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET }}'
             export AWS_DEFAULT_REGION="$REGION"
 
-            echo "=== AWS Identity ==="
-            aws sts get-caller-identity
-
-            echo "=== Login to ECR ==="
+            echo "Login to ECR"
             aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $REGISTRY
 
-            echo "=== Pull Latest Image ==="
+            echo "Pull Latest Image"
             docker pull $IMAGE_URI
 
-            echo "=== Stop Old Container ==="
+            echo "Stop Old Container"
             docker stop node-app || true
             docker rm node-app || true
 
-            echo "=== Remove Unused Images ==="
-            docker image prune -af || true
-
-            echo "=== Run New Container ==="
+            echo "Run New Container"
             docker run -d \
               --name node-app \
               --restart unless-stopped \
               -p 8000:8000 \
               $IMAGE_URI
 
-            echo "=== Running Containers ==="
-            docker ps 
-            
+            docker ps
