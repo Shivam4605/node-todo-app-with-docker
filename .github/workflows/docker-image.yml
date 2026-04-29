@@ -173,4 +173,5 @@ jobs:
               $IMAGE_URI
 
             echo "=== Running Containers ==="
-            docker ps
+            docker ps 
+            
