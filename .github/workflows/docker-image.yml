@@ -57,7 +57,6 @@ jobs:
 
             # Remove dangling images (optional cleanup)
             docker image prune -f || true
-
             # Run new container
             docker run -d \
               --name node-app \
